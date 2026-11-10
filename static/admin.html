@@ -1,0 +1,322 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Оценка администратора</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 1400px; margin: 30px auto; padding: 0 16px; }
+    h1 { margin-bottom: 8px; }
+    .hint { color: #555; font-size: 0.9em; margin-top: 0; }
+    table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 0.85em; }
+    th, td { border: 1px solid #ccc; padding: 5px; text-align: center; vertical-align: middle; }
+    th { background: #f3f4f6; position: sticky; top: 0; }
+    td:first-child { text-align: left; font-weight: 600; white-space: nowrap; }
+    input[type=number] { width: 65px; padding: 4px; }
+    select { padding: 4px; }
+    button { cursor: pointer; padding: 8px 14px; border-radius: 8px; border: 1px solid #bbb; background: #fff; }
+    button.primary { background: #2563eb; color: #fff; border: 0; }
+    button.primary:hover { background: #1d4ed8; }
+    .ok { color: #047857; font-weight: 600; }
+    .err { color: #b91c1c; font-weight: 600; }
+    .login-box { max-width: 420px; margin: 40px auto; padding: 24px; border: 1px solid #ccc; border-radius: 12px; }
+    .login-box label { display: block; margin-bottom: 8px; font-weight: 600; }
+    .login-box input { width: 100%; padding: 10px; box-sizing: border-box; margin-bottom: 12px; border: 1px solid #bbb; border-radius: 6px; }
+    .toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 12px 0; }
+    .desc-box { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; margin: 12px 0; max-height: 260px; overflow: auto; font-size: 0.9em; }
+    .desc-box h3 { margin: 0 0 8px; font-size: 1em; }
+    .desc-item { margin-bottom: 8px; }
+    .desc-item b { color: #111827; }
+  </style>
+</head>
+<body>
+
+  <!-- ================= ЭКРАН ВХОДА ================= -->
+  <div id="loginScreen" class="login-box">
+    <h1>Оценка администратора</h1>
+    <p class="hint">Введите общий пароль администратора.</p>
+    <label for="pwd">Пароль</label>
+    <input type="password" id="pwd" placeholder="Пароль" autocomplete="current-password">
+    <button class="primary" onclick="login()">Войти</button>
+    <p id="loginMsg"></p>
+  </div>
+
+  <!-- ================= ОСНОВНОЙ ЭКРАН ================= -->
+  <div id="appScreen" style="display:none">
+    <h1>Оценка администратора</h1>
+    <p class="hint">
+      Отметьте выполненные критерии. №14 — нарушение (минус 2, один раз).
+      №26, №27/28, №30 — выбор/число. №13 — ручной балл (0–50), при нажатии
+      «Показать описания» видно описание дополнительных работ учителя.
+    </p>
+
+    <div class="toolbar">
+      <button class="primary" onclick="saveAll()">💾 Сохранить все</button>
+      <button onclick="loadDescriptions()">📄 Показать описания №13</button>
+      <button onclick="reloadData()">↻ Обновить</button>
+      <span id="msg"></span>
+    </div>
+
+    <div id="descBox" class="desc-box" style="display:none"></div>
+
+    <div style="overflow-x:auto">
+      <table id="tbl"></table>
+    </div>
+
+    <div class="toolbar">
+      <button class="primary" onclick="saveAll()">💾 Сохранить все</button>
+    </div>
+  </div>
+
+<script>
+// ------------------------------------------------------------------
+// Состояние
+// ------------------------------------------------------------------
+let password = '';
+let teachers = [];          // [{fio, ...}] — только статус teacher, активные
+let evalMap = {};           // fio -> запись оценки администратора
+let descriptions = {};      // fio -> описание №13 из самооценки
+
+// ------------------------------------------------------------------
+// Утилиты
+// ------------------------------------------------------------------
+function esc(s) {
+  return (s ?? '').toString().replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+function headers(extra = {}) {
+  return { 'Content-Type': 'application/json', 'X-Admin-Password': password, ...extra };
+}
+
+// ------------------------------------------------------------------
+// Вход
+// ------------------------------------------------------------------
+async function login() {
+  password = document.getElementById('pwd').value.trim();
+  if (!password) {
+    document.getElementById('loginMsg').innerHTML = '<span class="err">Введите пароль</span>';
+    return;
+  }
+
+  const r = await fetch('/api/admin/evals', { headers: headers() });
+  if (!r.ok) {
+    document.getElementById('loginMsg').innerHTML = '<span class="err">Неверный пароль</span>';
+    password = '';
+    return;
+  }
+
+  const evals = await r.json();
+  evalMap = Object.fromEntries(evals.map(e => [e.fio, e]));
+
+  await loadTeachers();
+
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appScreen').style.display = 'block';
+  render();
+}
+
+// ------------------------------------------------------------------
+// Загрузка справочника учителей
+// ------------------------------------------------------------------
+async function loadTeachers() {
+  const r = await fetch('/api/teachers');
+  const all = await r.json();
+  // status: teacher, active: 1
+  teachers = all.filter(t => t.status === 'teacher' && t.active === 1);
+}
+
+async function reloadData() {
+  const msg = document.getElementById('msg');
+  msg.className = ''; msg.textContent = 'Обновление...';
+  const r = await fetch('/api/admin/evals', { headers: headers() });
+  if (!r.ok) {
+    msg.className = 'err'; msg.textContent = 'Ошибка доступа';
+    return;
+  }
+  const evals = await r.json();
+  evalMap = Object.fromEntries(evals.map(e => [e.fio, e]));
+  await loadTeachers();
+  render();
+  msg.className = 'ok'; msg.textContent = 'Обновлено';
+}
+
+// ------------------------------------------------------------------
+// Рендер таблицы
+// ------------------------------------------------------------------
+const BIN_CRITERIA = [
+  ['c15', '15. ЦДЗ ≥15% уроков', 1],
+  ['c16', '16. ≥10 сообщений/нед в МАХ', 1],
+  ['c17', '17. Динамика обученности', 1],
+  ['c18', '18. План с неуспевающими', 1],
+  ['c19', '19. «Билет в будущее» 100%', 1],
+  ['c20', '20. Нет дисциплинарных нарушений', 1],
+  ['c21', '21. Школьный олимпионик', 2],
+  ['c22', '22. План подготовки 100%', 5],
+  ['c23', '23. Динамика РИКУ', 5],
+  ['c24', '24. «Ассистент преподавателя»', 3],
+  ['c25', '25. Профориентация 100%', 3],
+  ['c29', '29. График дежурства 100%', 1]
+];
+
+function render() {
+  let h = '<thead><tr>';
+  h += '<th>ФИО</th>';
+  h += '<th>14. Нарушение<br>(−2)</th>';
+  BIN_CRITERIA.forEach(([k, title]) => h += `<th>${esc(title)}</th>`);
+  h += '<th>26. Доля ЕГЭ<br>профиль</th>';
+  h += '<th>27/28. Платные<br>услуги</th>';
+  h += '<th>30. ВПР/РДР<br>(число работ)</th>';
+  h += '<th>13. Ручной<br>балл (0–50)</th>';
+  h += '</tr></thead><tbody>';
+
+  teachers.forEach(t => {
+    const fio = t.fio;
+    const e = evalMap[fio] || {};
+    h += '<tr>';
+    h += `<td>${esc(fio)}</td>`;
+
+    // 14 — нарушение
+    h += `<td><input type="checkbox" data-fio="${esc(fio)}" data-k="c14" ${e.c14 ? 'checked' : ''}></td>`;
+
+    // 15–25, 29 — чекбоксы
+    BIN_CRITERIA.forEach(([k]) => {
+      h += `<td><input type="checkbox" data-fio="${esc(fio)}" data-k="${k}" ${e[k] ? 'checked' : ''}></td>`;
+    });
+
+    // 26 — доля ЕГЭ
+    h += `<td>
+      <select data-fio="${esc(fio)}" data-k="c26">
+        <option value="">—</option>
+        <option value="<70" ${e.c26 === '<70' ? 'selected' : ''}>ниже 70% (0)</option>
+        <option value="70-89" ${e.c26 === '70-89' ? 'selected' : ''}>70–89% (5)</option>
+        <option value="90+" ${e.c26 === '90+' ? 'selected' : ''}>от 90% (10)</option>
+      </select>
+    </td>`;
+
+    // 27/28 — платные услуги (один вариант, наибольший балл)
+    h += `<td>
+      <select data-fio="${esc(fio)}" data-k="c27">
+        <option value="">—</option>
+        <option value="нет" ${e.c27 === 'нет' ? 'selected' : ''}>нет (0)</option>
+        <option value="10-15" ${e.c27 === '10-15' ? 'selected' : ''}>10–15 чел. (1)</option>
+        <option value=">15" ${e.c27 === '>15' ? 'selected' : ''}>более 15 чел. (2)</option>
+      </select>
+    </td>`;
+
+    // 30 — число работ
+    h += `<td><input type="number" min="0" data-fio="${esc(fio)}" data-k="c30" value="${e.c30 ?? ''}"></td>`;
+
+    // 13 — ручной балл
+    h += `<td><input type="number" min="0" max="50" data-fio="${esc(fio)}" data-k="c13_manual" value="${e.c13_manual ?? 0}"></td>`;
+
+    h += '</tr>';
+  });
+
+  h += '</tbody>';
+  document.getElementById('tbl').innerHTML = h;
+}
+
+// ------------------------------------------------------------------
+// Сохранение всех оценок
+// ------------------------------------------------------------------
+async function saveAll() {
+  const msg = document.getElementById('msg');
+  msg.className = ''; msg.textContent = 'Сохранение...';
+
+  // Собираем данные из всех полей таблицы
+  const byFio = {};
+  teachers.forEach(t => {
+    byFio[t.fio] = { fio: t.fio };
+  });
+
+  document.querySelectorAll('[data-fio]').forEach(el => {
+    const fio = el.dataset.fio;
+    const k = el.dataset.k;
+    if (!byFio[fio]) return;
+
+    if (el.type === 'checkbox') {
+      byFio[fio][k] = el.checked ? 1 : 0;
+    } else if (el.type === 'number') {
+      byFio[fio][k] = el.value === '' ? null : Number(el.value);
+    } else {
+      byFio[fio][k] = el.value || null;
+    }
+  });
+
+  let okCount = 0, errCount = 0;
+  for (const fio in byFio) {
+    const r = await fetch('/api/admin/eval', {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify(byFio[fio])
+    });
+    if (r.ok) okCount++;
+    else errCount++;
+  }
+
+  if (errCount === 0) {
+    msg.className = 'ok';
+    msg.textContent = `Сохранено: ${okCount} записей`;
+  } else {
+    msg.className = 'err';
+    msg.textContent = `Сохранено: ${okCount}, ошибок: ${errCount}`;
+  }
+
+  // Обновляем локальную карту оценок
+  for (const fio in byFio) {
+    evalMap[fio] = { ...(evalMap[fio] || {}), ...byFio[fio] };
+  }
+}
+
+// ------------------------------------------------------------------
+// Загрузка и показ описаний №13
+// ------------------------------------------------------------------
+async function loadDescriptions() {
+  const msg = document.getElementById('msg');
+  const box = document.getElementById('descBox');
+  msg.className = ''; msg.textContent = 'Загрузка описаний...';
+
+  descriptions = {};
+  let found = 0;
+
+  for (const t of teachers) {
+    const r = await fetch(`/api/self/${encodeURIComponent(t.fio)}`);
+    if (!r.ok) continue;
+    const data = await r.json();
+    const desc = data.wide?.c13;
+    if (desc && desc.trim()) {
+      descriptions[t.fio] = desc.trim();
+      found++;
+    }
+  }
+
+  if (found === 0) {
+    box.style.display = 'block';
+    box.innerHTML = '<h3>Описания №13</h3><p>Нет описаний от учителей.</p>';
+    msg.className = '';
+    msg.textContent = '';
+    return;
+  }
+
+  let h = '<h3>Описания №13 (дополнительные работы)</h3>';
+  for (const fio in descriptions) {
+    h += `<div class="desc-item"><b>${esc(fio)}:</b> ${esc(descriptions[fio])}</div>`;
+  }
+  box.innerHTML = h;
+  box.style.display = 'block';
+  msg.className = 'ok';
+  msg.textContent = `Загружено описаний: ${found}`;
+}
+
+// ------------------------------------------------------------------
+// Инициализация
+// ------------------------------------------------------------------
+document.getElementById('pwd').addEventListener('keydown', ev => {
+  if (ev.key === 'Enter') login();
+});
+</script>
+</body>
+</html>

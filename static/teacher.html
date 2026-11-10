@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Самооценка учителя</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 1000px; margin: 30px auto; padding: 0 16px; }
+    h1 { margin-bottom: 4px; }
+    .hint { color: #555; font-size: 0.9em; margin-top: 0; }
+    fieldset { border: 1px solid #ccc; border-radius: 10px; margin: 16px 0; padding: 16px; }
+    legend { font-weight: 700; padding: 0 6px; }
+    label { display: block; margin: 8px 0 4px; font-weight: 500; }
+    input, select, textarea { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #bbb; border-radius: 6px; }
+    .row { display: grid; grid-template-columns: 1.2fr 1.6fr 0.7fr auto; gap: 8px; align-items: end; margin: 10px 0; padding: 8px; background: #fafafa; border: 1px solid #eee; border-radius: 8px; }
+    .row button { padding: 8px 12px; }
+    .row .rm { background: #fff; border: 1px solid #bbb; border-radius: 6px; cursor: pointer; }
+    button.add { background: #fff; border: 1px dashed #888; border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+    button.add:hover { background: #f3f4f6; }
+    button.primary { background: #2563eb; color: #fff; border: 0; padding: 12px 22px; border-radius: 8px; cursor: pointer; font-size: 1em; }
+    button.primary:hover { background: #1d4ed8; }
+    .ok { color: #047857; font-weight: 600; }
+    .err { color: #b91c1c; font-weight: 600; }
+    .crit-desc { color: #6b7280; font-size: 0.85em; margin: 2px 0 8px; }
+  </style>
+</head>
+<body>
+  <h1>Самооценка учителя</h1>
+  <p class="hint">Заполните данные. Баллы рассчитываются автоматически. №13 оценивает администратор.</p>
+
+  <form id="form">
+    <label>ФИО *</label>
+    <select id="fio" required></select>
+
+    <!-- ============ Критерий 1 ============ -->
+    <fieldset>
+      <legend>Критерий 1. Наличие призёров/победителей олимпиад и конкурсов </legend>
+      <p class="crit-desc"></p>
+      <div id="rows1"></div>
+      <button type="button" class="add" onclick="addRow(1)">+ Добавить достижение</button>
+    </fieldset>
+
+    <!-- ============ Критерий 2 ============ -->
+    <fieldset>
+      <legend>Критерий 2. Конкурсы педагогического мастерства </legend>
+      <p class="crit-desc"></p>
+      <div id="rows2"></div>
+      <button type="button" class="add" onclick="addRow(2)">+ Добавить результат</button>
+    </fieldset>
+
+    <!-- ============ Критерий 3 ============ -->
+    <fieldset>
+      <legend>Критерий 3. Диссеминация опыта работы в системе «Ассистент преподавателя»</legend>
+      <p class="crit-desc"></p>
+      <div id="rows3"></div>
+      <button type="button" class="add" onclick="addRow(3)">+ Добавить</button>
+    </fieldset>
+
+    <!-- ============ Критерий 4 ============ -->
+    <fieldset>
+      <legend>Критерий 4. Диссеминация опыта работы на профессиональных площадках</legend>
+      <p class="crit-desc"></p>
+      <div id="rows4"></div>
+      <button type="button" class="add" onclick="addRow(4)">+ Добавить</button>
+    </fieldset>
+
+    <!-- ============ Критерий 5 ============ -->
+    <fieldset>
+      <legend>Критерий 5. Публикации по темам проектов, реализуемых в Гимназии</legend>
+      <p class="crit-desc"></p>
+      <div id="rows5"></div>
+      <button type="button" class="add" onclick="addRow(5)">+ Добавить публикацию</button>
+    </fieldset>
+
+    <!-- ============ Критерий 8 ============ -->
+    <fieldset>
+      <legend>Критерий 6. Участие детских общественных объединений в мероприятиях поо уровням</legend>
+      <p class="crit-desc">Для руководителей детских объединений.</p>
+      <div id="rows8"></div>
+      <button type="button" class="add" onclick="addRow(8)">+ Добавить мероприятие</button>
+    </fieldset>
+
+    <!-- ============ Критерий 9 ============ -->
+    <fieldset>
+      <legend>Критерий 7. Результативность участия детских общественных объединений в конкурсах</legend>
+      <p class="crit-desc">Для руководителей детских объединений.</p>
+      <div id="rows9"></div>
+      <button type="button" class="add" onclick="addRow(9)">+ Добавить результат</button>
+    </fieldset>
+
+    <!-- ============ Критерии 6, 7, 10, 11, 12, 13 ============ -->
+    <fieldset>
+      <legend>Ответьте на вопросы "Да/нет" или укажите количество</legend>
+
+      <label>8. Участие учащихся профильных классов в перечневых олимпиадах (не менее 70%)</label>
+      <select id="c6" required><option value="нет">Нет</option><option value="да">Да</option></select>
+
+      <label>9. Участие учащихся профильных классов в плановых конкурсах проекта (не менее 70%)</label>
+      <select id="c7" required><option value="нет">Нет</option><option value="да">Да</option></select>
+
+      <label>10. Благоустройство школьного пространства </label>
+      <div>
+        <label><input type="checkbox" value="проверки"> Подготовка к проверкам</label>
+        <label><input type="checkbox" value="ППЭ"> ППЭ</label>
+        <label><input type="checkbox" value="праздники"> Оформление к праздникам</label>
+        <label><input type="checkbox" value="безопасность"> Наличие папки безопасности, аптечки, инструкции по ТБ</label>
+        <label><input type="checkbox" value="другие"> Благоустройство других пространств</label>
+      </div>
+
+      <label>11. Проверка ВПР/РДР — число работ (до 15 — 1 б.; 16–35 — 2 б.; 36–50 — 3 б.; >50 — 5 б.)</label>
+      <input type="number" id="c11" min="0" value="0">
+
+      <label>12. Учитель состоит в региональном активе / член Ассоциации * (2 б. за «да»)</label>
+      <select id="c12" required><option value="нет">Нет</option><option value="да">Да</option></select>
+
+      <label>13. Дополнительные работы </label>
+      <textarea id="c13" rows="3" placeholder="Перечислите дополнительные работы..."></textarea>
+    </fieldset>
+
+    <button class="primary" type="submit">Отправить</button>
+    <p id="msg"></p>
+  </form>
+
+<script>
+// ------------------------------------------------------------------
+// Настройки по критериям
+// ------------------------------------------------------------------
+const CRIT = {
+  1: { levels: ['региональный','всероссийский'], qty: true, namePh: 'Название олимпиады/конкурса' },
+  2: { levels: ['региональный','всероссийский'], qty: true, namePh: 'Название конкурса' },
+  3: { levels: ['школьный','муниципальный','региональный'], qty: true, namePh: 'Тема/форма' },
+  4: { levels: ['школьный','муниципальный','региональный','всероссийский'], qty: true, namePh: 'Тема/форма' },
+  5: { levels: [], qty: true, namePh: 'Название публикации' },
+  8: { levels: [], qty: true, namePh: 'Мероприятие' },
+  9: { levels: ['муниципальный','региональный','всероссийский'], qty: true, namePh: 'Мероприятие/результат' }
+};
+
+function esc(s) {
+  return (s ?? '').toString().replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+// ------------------------------------------------------------------
+// Загрузка ФИО
+// ------------------------------------------------------------------
+async function loadTeachers() {
+  const r = await fetch('/api/teachers');
+  const list = await r.json();
+  const sel = document.getElementById('fio');
+  sel.innerHTML = '<option value="">— выберите —</option>' +
+    list.filter(t => t.status === 'teacher' && t.active === 1)
+        .map(t => `<option>${esc(t.fio)}</option>`).join('');
+}
+
+// ------------------------------------------------------------------
+// Добавление строки в блок критерия
+// ------------------------------------------------------------------
+function addRow(crit) {
+  const cfg = CRIT[crit];
+  if (!cfg) return;
+
+  const container = document.getElementById('rows' + crit);
+  const div = document.createElement('div');
+  div.className = 'row';
+  div.dataset.crit = crit;
+
+  // Уровень
+  let levelHtml = '';
+  if (cfg.levels.length) {
+    levelHtml = `
+      <div>
+        <label>Уровень</label>
+        <select class="level">
+          ${cfg.levels.map(l => `<option value="${l}">${l}</option>`).join('')}
+        </select>
+      </div>`;
+  } else {
+    levelHtml = `<div><label>Уровень</label><div style="padding:8px;color:#888">—</div></div>`;
+  }
+
+  // Количество
+  let qtyHtml = '';
+  if (cfg.qty) {
+    qtyHtml = `
+      <div>
+        <label>Кол-во</label>
+        <input class="qty" type="number" min="1" value="1">
+      </div>`;
+  } else {
+    qtyHtml = `<div><label>Кол-во</label><div style="padding:8px;color:#888">1</div></div>`;
+  }
+
+  div.innerHTML = `
+    ${levelHtml}
+    <div>
+      <label>Название / пояснение</label>
+      <input class="name" placeholder="${esc(cfg.namePh)}">
+    </div>
+    ${qtyHtml}
+    <div>
+      <button type="button" class="rm" title="Удалить строку">✕</button>
+    </div>
+  `;
+
+  div.querySelector('.rm').addEventListener('click', () => div.remove());
+  container.appendChild(div);
+}
+
+// ------------------------------------------------------------------
+// Отправка формы
+// ------------------------------------------------------------------
+async function submitForm(e) {
+  e.preventDefault();
+  const msg = document.getElementById('msg');
+  const fio = document.getElementById('fio').value;
+  if (!fio) {
+    msg.className = 'err'; msg.textContent = 'Выберите ФИО';
+    return;
+  }
+
+  msg.className = ''; msg.textContent = 'Отправка...';
+
+  // Собираем строки по всем блокам
+  const rows = [];
+  document.querySelectorAll('#form .row').forEach(div => {
+    const crit = Number(div.dataset.crit);
+    const levelEl = div.querySelector('.level');
+    const nameEl = div.querySelector('.name');
+    const qtyEl = div.querySelector('.qty');
+    const name = nameEl ? nameEl.value.trim() : '';
+    const level = levelEl ? levelEl.value : null;
+    const qty = qtyEl ? (Number(qtyEl.value) || 1) : 1;
+
+    // Пропускаем полностью пустые строки
+    if (!name && !level) return;
+    rows.push({ fio, crit, level, name, qty, comment: null });
+  });
+
+  // Широкая часть
+  const c10 = [...document.querySelectorAll('input[type=checkbox]:checked')].map(x => x.value);
+  const wide = {
+    fio,
+    c6: document.getElementById('c6').value,
+    c7: document.getElementById('c7').value,
+    c10,
+    c11: Number(document.getElementById('c11').value) || 0,
+    c12: document.getElementById('c12').value,
+    c13: document.getElementById('c13').value
+  };
+
+  try {
+    // 1) Очищаем текущий месяц по учителю (чтобы повторная отправка заменяла, а не дублировала)
+    await fetch(`/api/self/${encodeURIComponent(fio)}/current-month`, { method: 'DELETE' });
+
+    // 2) Отправляем все построчные записи одним запросом
+    if (rows.length) {
+      const r1 = await fetch('/api/self/rows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fio, rows })
+      });
+      if (!r1.ok) throw new Error('Ошибка сохранения построчных данных');
+    }
+
+    // 3) Отправляем широкую часть
+    const r2 = await fetch('/api/self/wide', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(wide)
+    });
+    if (!r2.ok) throw new Error('Ошибка сохранения широкой части');
+
+    msg.className = 'ok';
+    msg.textContent = 'Ответы отправлены. Спасибо!';
+    document.getElementById('form').reset();
+    [1, 2, 3, 4, 5, 8, 9].forEach(c => { document.getElementById('rows' + c).innerHTML = ''; });
+    addRow(1); addRow(2); addRow(3); addRow(4); addRow(5); addRow(8); addRow(9);
+  } catch (err) {
+    msg.className = 'err';
+    msg.textContent = err.message || 'Ошибка отправки';
+  }
+}
+
+// ------------------------------------------------------------------
+// Инициализация
+// ------------------------------------------------------------------
+document.getElementById('form').addEventListener('submit', submitForm);
+loadTeachers();
+// Стартовые строки в каждом блоке
+[1, 2, 3, 4, 5, 8, 9].forEach(addRow);
+</script>
+</body>
+</html>

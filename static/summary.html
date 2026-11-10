@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Сводная таблица</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 20px; padding: 0 12px; }
+    h1 { margin-bottom: 8px; }
+    .hint { color: #555; font-size: 0.9em; margin-top: 0; }
+    table { border-collapse: collapse; font-size: 0.8em; margin: 16px 0; }
+    th, td { border: 1px solid #ccc; padding: 5px 6px; text-align: center; }
+    th { background: #f3f4f6; position: sticky; top: 0; z-index: 1; }
+    td:first-child, th:first-child { text-align: left; font-weight: 600;
+      position: sticky; left: 0; background: #fff; z-index: 2; }
+    th:first-child { background: #f3f4f6; z-index: 3; }
+    tfoot td { font-weight: 700; background: #f9fafb; }
+    .neg { color: #b91c1c; }
+    .zero { color: #9ca3af; }
+    button { cursor: pointer; padding: 9px 16px; border-radius: 8px;
+      border: 1px solid #bbb; background: #fff; }
+    button.primary { background: #2563eb; color: #fff; border: 0; }
+    .ok { color: #047857; font-weight: 600; }
+    .err { color: #b91c1c; font-weight: 600; }
+    .login-box { max-width: 420px; margin: 40px auto; padding: 24px;
+      border: 1px solid #ccc; border-radius: 12px; }
+    .login-box input { width: 100%; padding: 10px; box-sizing: border-box;
+      margin-bottom: 12px; border: 1px solid #bbb; border-radius: 6px; }
+    .toolbar { display: flex; gap: 12px; align-items: center;
+      flex-wrap: wrap; margin: 12px 0; }
+    .scroll { overflow-x: auto; max-width: 100%; }
+  </style>
+</head>
+<body>
+
+<div id="loginScreen" class="login-box">
+  <h1>Сводная таблица</h1>
+  <p class="hint">Введите пароль ответственного (администратора).</p>
+  <input type="password" id="pwd" placeholder="Пароль">
+  <button class="primary" onclick="login()">Войти</button>
+  <p id="loginMsg"></p>
+</div>
+
+<div id="appScreen" style="display:none">
+  <h1>Сводная таблица</h1>
+  <p class="hint">Баллы по каждому критерию 1–30. №13 — ручной балл администратора.
+    Итог = сумма всех баллов (может быть отрицательным).</p>
+  <div class="toolbar">
+    <button class="primary" onclick="loadSummary()">↻ Обновить</button>
+    <button onclick="exportCsv()">⬇ Выгрузить CSV</button>
+    <span id="msg"></span>
+  </div>
+  <div class="scroll">
+    <table id="tbl"></table>
+  </div>
+</div>
+
+<script>
+let password = '';
+let data = [];
+
+function esc(s) {
+  return (s ?? '').toString().replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function headers() {
+  return { 'Content-Type': 'application/json', 'X-Admin-Password': password };
+}
+
+async function login() {
+  password = document.getElementById('pwd').value.trim();
+  const r = await fetch('/api/summary', { headers: headers() });
+  if (!r.ok) {
+    document.getElementById('loginMsg').innerHTML = '<span class="err">Неверный пароль</span>';
+    password = '';
+    return;
+  }
+  data = await r.json();
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appScreen').style.display = 'block';
+  render();
+}
+
+async function loadSummary() {
+  const msg = document.getElementById('msg');
+  msg.className = ''; msg.textContent = 'Обновление...';
+  const r = await fetch('/api/summary', { headers: headers() });
+  if (!r.ok) { msg.className='err'; msg.textContent='Ошибка'; return; }
+  data = await r.json();
+  render();
+  msg.className = 'ok'; msg.textContent = 'Обновлено';
+}
+
+function cell(v) {
+  if (v === undefined || v === null) v = 0;
+  if (v === 0) return `<td class="zero">0</td>`;
+  if (v < 0) return `<td class="neg">${v}</td>`;
+  return `<td>${v}</td>`;
+}
+
+function render() {
+  if (!data.length) {
+    document.getElementById('tbl').innerHTML = '<tr><td>Нет данных</td></tr>';
+    return;
+  }
+
+  let h = '<thead><tr>';
+  h += '<th>ФИО</th>';
+  for (let i = 1; i <= 12; i++) h += `<th>${i}</th>`;
+  h += '<th>13</th>';
+  for (let i = 14; i <= 30; i++) h += `<th>${i}</th>`;
+  h += '<th>Итог</th><th>Статус</th></tr></thead><tbody>';
+
+  data.forEach(r => {
+    h += '<tr>';
+    h += `<td>${esc(r.fio)}</td>`;
+    for (let i = 1; i <= 12; i++) h += cell(r.self[String(i)]);
+    h += cell(r.c13);
+    for (let i = 14; i <= 30; i++) h += cell(r.admin[String(i)]);
+    const neg = r.total < 0 ? 'neg' : '';
+    h += `<td class="${neg}"><b>${r.total}</b></td>`;
+    h += `<td>${esc(r.status)}</td>`;
+    h += '</tr>';
+  });
+
+  h += '</tbody><tfoot><tr><td>ИТОГО</td>';
+  for (let i = 1; i <= 12; i++)
+    h += `<td>${sumSelf(String(i))}</td>`;
+  h += `<td>${sum('c13')}</td>`;
+  for (let i = 14; i <= 30; i++)
+    h += `<td>${sumAdmin(String(i))}</td>`;
+  h += `<td>${sum('total')}</td><td>—</td></tr></tfoot>`;
+
+  document.getElementById('tbl').innerHTML = h;
+}
+
+function sumSelf(k) { return data.reduce((a, r) => a + (r.self[k] || 0), 0); }
+function sumAdmin(k) { return data.reduce((a, r) => a + (r.admin[k] || 0), 0); }
+function sum(k) { return data.reduce((a, r) => a + (Number(r[k]) || 0), 0); }
+
+async function exportCsv() {
+  const msg = document.getElementById('msg');
+  msg.className = ''; msg.textContent = 'Выгрузка...';
+  const r = await fetch('/api/summary/export', { headers: headers() });
+  if (!r.ok) { msg.className='err'; msg.textContent='Ошибка выгрузки'; return; }
+  const blob = await r.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'summary.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  msg.className = 'ok'; msg.textContent = 'Файл выгружен';
+}
+
+document.getElementById('pwd').addEventListener('keydown', e => {
+  if (e.key === 'Enter') login();
+});
+</script>
+</body>
+</html>
