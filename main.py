@@ -507,9 +507,17 @@ def rules():
         },
     }
 
+@app.get("/api/teachers")
+def get_teachers(active_only: bool = True):
+    conn = db()
+    q = "SELECT * FROM teachers"
+    if active_only:
+        q += " WHERE active=1"
+    q += " ORDER BY fio"
+    rows = [dict(r) for r in conn.execute(q)]
+    conn.close()
+    return rows
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
-#https://uhhto-94-253-125-64.run.pinggy-free.link
